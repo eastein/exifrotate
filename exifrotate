@@ -1,0 +1,63 @@
+#!/usr/bin/env python
+
+import subprocess
+import sys
+import os.path
+import re
+import tempfile
+
+orientation_reg = re.compile('^Orientation: [0-9]+$')
+
+if __name__ == '__main__' :
+	fn = sys.argv[1]
+	if not os.path.exists(fn) :
+		print 'could not access %s' % fn
+		sys.exit(1)
+	etool = subprocess.Popen(['exiftool', '-n', '-S', '-Orientation', fn], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	out, err = etool.communicate()
+	if err :
+		print 'exiftool failure'
+		sys.exit(1)
+	out = out.split('\n')[0]
+	if out == '' :
+		sys.exit(0)
+	if not orientation_reg.match(out) :
+		print 'exiftool unparsable output: %s' % out
+		sys.exit(1)
+	orient = int(out.split(':')[1])
+	orients = {
+		1 : 0,
+		8 : 90,
+		3 : 180,
+		6 : 270
+	}
+	if orient not in orients :
+		# see http://sylvana.net/jpegcrop/exif_orientation.html
+		print 'EXIF Orientation %d unknown' % orient
+		sys.exit(1)
+	orient = orients[orient]
+	if orient == 0 :
+		sys.exit(0)
+	orient = '-' + str(orient)
+	temp_file = tempfile.mktemp('.jpg')
+	try :
+		rotate = subprocess.Popen(['convert', '-rotate', orient, fn, temp_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		out, err = rotate.communicate()
+		if err :
+			print 'conversion failure'
+			sys.exit(1)
+
+		strip_orient = subprocess.Popen(['exiftool', '-Orientation=', temp_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		out, err = strip_orient.communicate()
+		if err :
+			print 'could not strip EXIF orientation'
+			sys.exit(1)
+
+		copy = subprocess.Popen(['cp', temp_file, fn], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		out, err = copy.communicate()
+		if err :
+			print 'could not copy over original'
+			sys.exit(1)
+	finally :
+		os.unlink(temp_file)
+		raise

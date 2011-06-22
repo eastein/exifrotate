@@ -33,6 +33,6 @@ if __name__ == '__main__' :
 		orient = -float(orient)
 
 		image.rotate(orient)
-		image.attribute('EXIF:Orientation', '1')
+		#image.attribute('EXIF:Orientation', '1')
 
 		image.write(fn)
